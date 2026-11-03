@@ -1,0 +1,55 @@
+# ---------- Credentials / secrets ----------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ---------- Java / Maven build output ----------
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+*.war
+*.ear
+*.nar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+# ---------- IDE: IntelliJ IDEA ----------
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ---------- IDE: Eclipse / VS Code ----------
+.classpath
+.project
+.settings/
+bin/
+.factorypath
+.vscode/
+.history/
+
+# ---------- Test / coverage reports ----------
+surefire-reports/
+jacoco.exec
+*.exec
+hs_err_pid*
+replay_pid*
+
+# ---------- Logs ----------
+logs/
+*.log
+
+# ---------- OS junk ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- WorkBuddy workspace metadata ----------
+.workbuddy/
+
+# ---------- Testcontainers / docker runtime artifacts ----------
+.testcontainers.properties

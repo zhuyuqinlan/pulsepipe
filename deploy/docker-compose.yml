@@ -1,0 +1,186 @@
+# PulsePipe infrastructure stack
+#
+# Works with both `docker compose` and `podman compose`.
+# Bind mounts use :z (SELinux relabel); the RustFS named volume uses :U so
+# Podman chowns the volume directory to the container user automatically.
+#
+# Credentials/secrets live in .env — copy .env.example to .env first.
+
+name: pulsepipe
+
+services:
+  emqx:
+    image: docker.io/emqx/emqx:5.8
+    container_name: pulsepipe-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_NAME: pulsepipe
+      # Stable node name so Mnesia (built-in authn database) survives container recreation.
+      EMQX_HOST: 127.0.0.1
+      # Session message queue capacity: protects against broker-side drops
+      # (dropped_msg_due_to_mqueue_is_full) during ingest bursts.
+      EMQX_MQTT__MAX_MQUEUE_LEN: "100000"
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "${EMQX_DASHBOARD_PORT:-18083}:18083"
+    volumes:
+      - emqx_data:/opt/emqx/data:z
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - pulsepipe
+
+  # One-shot: registers the MQTT application user via the EMQX dashboard API.
+  # EMQX built-in-database authentication rejects unknown credentials, so
+  # anonymous clients cannot publish.
+  emqx-auth-init:
+    image: docker.io/curlimages/curl:8.10.1
+    container_name: pulsepipe-emqx-auth-init
+    restart: "no"
+    depends_on:
+      emqx:
+        condition: service_healthy
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "Waiting for EMQX dashboard API..."
+        for i in $$(seq 1 30); do
+          curl -fsS -o /dev/null http://emqx:18083/api/v5/status && break || sleep 2
+        done
+        echo "Authenticating against dashboard API..."
+        TOKEN=$$(curl -fsS -X POST http://emqx:18083/api/v5/login \
+          -H "Content-Type: application/json" \
+          -d '{"username":"admin","password":"public"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+        AUTH="Authorization: Bearer $$TOKEN"
+        echo "Creating password_based:built_in_database authenticator (idempotent)..."
+        curl -fsS -X POST http://emqx:18083/api/v5/authentication \
+          -H "$$AUTH" -H "Content-Type: application/json" \
+          -d '{"mechanism":"password_based","backend":"built_in_database","user_id_type":"username","password_hash_algorithm":{"name":"sha256","salt_position":"suffix"}}' \
+          || echo "authenticator already exists"
+        echo "Creating MQTT user..."
+        curl -fsS -X POST "http://emqx:18083/api/v5/authentication/password_based:built_in_database/users" \
+          -H "$$AUTH" -H "Content-Type: application/json" \
+          -d "{\"user_id\":\"$${MQTT_USERNAME}\",\"password\":\"$${MQTT_PASSWORD}\",\"is_superuser\":false}" \
+          || echo "MQTT user already exists"
+        echo "EMQX auth init done."
+    networks:
+      - pulsepipe
+
+  kafka:
+    # Bitnami Kafka tags were removed from Docker Hub; use the Apache official image.
+    image: docker.io/apache/kafka:3.9.0
+    container_name: pulsepipe-kafka
+    restart: unless-stopped
+    environment:
+      # KRaft mode: single combined broker+controller, no ZooKeeper.
+      CLUSTER_ID: "pulsepipe-kafka-cluster-0001"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+    ports:
+      - "${KAFKA_EXTERNAL_PORT:-29092}:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data:z
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks:
+      - pulsepipe
+
+  timescaledb:
+    image: docker.io/timescale/timescaledb:2.17.2-pg16
+    container_name: pulsepipe-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${TIMESCALEDB_PORT:-5432}:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data:z
+      - ./timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql:z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - pulsepipe
+
+  rustfs:
+    image: docker.io/rustfs/rustfs:latest
+    container_name: pulsepipe-rustfs
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "${RUSTFS_S3_PORT:-9000}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs_data:/data:U
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - pulsepipe
+
+  # One-shot: creates the storage bucket idempotently after RustFS is healthy.
+  rustfs-bucket-init:
+    image: docker.io/rustfs/rc:latest
+    container_name: pulsepipe-rustfs-bucket-init
+    restart: "no"
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-pulsepipe}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rc alias set local http://rustfs:9000 "$$RUSTFS_ACCESS_KEY" "$$RUSTFS_SECRET_KEY" &&
+        rc bucket create --ignore-existing "local/$$STORAGE_BUCKET"
+    networks:
+      - pulsepipe
+
+volumes:
+  emqx_data:
+  kafka_data:
+  timescale_data:
+  rustfs_data:
+
+networks:
+  pulsepipe:
+    driver: bridge
