@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Springdoc / Knife4j 接口文档配置，根据 springdoc.info 配置项生成 OpenAPI Info 信息。
+ * Springdoc 接口文档配置，根据 springdoc.info 配置项生成 OpenAPI Info 信息。
  */
 @Configuration
 @EnableConfigurationProperties(SpringDocProperties.class)

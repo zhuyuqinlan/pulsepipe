@@ -1,6 +1,9 @@
 # PulsePipe 常用命令快捷入口
 
 JAVA ?= java
+# 优先走 mise 管理的 Java 25 工具链；未装 mise 时退回 PATH 上的 mvn
+MISE := $(shell command -v mise >/dev/null 2>&1 && echo mise exec --)
+MVN := $(MISE) mvn
 ENV_FILE := .env
 COMPOSE := docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.dev.yml
 SIMULATOR_JAR := pulsepipe-simulator/target/pulsepipe-simulator-0.1.0-SNAPSHOT.jar
@@ -26,21 +29,21 @@ help:
 	@echo "  make clean          - 清理构建产物"
 
 build:
-	mvn package -DskipTests
+	$(MVN) package -DskipTests
 
 test:
-	mvn test
+	$(MVN) test
 
 clean:
-	mvn clean
+	$(MVN) clean
 
 # 用法: make dev [ARGS="--server.port=8080"]
 # 单模块 spring-boot:run 需要兄弟模块已 install；自动加载 .env
 # （不用 call，因为模块列表的逗号会被 call 当参数分隔符）
 dev:
 	set -a; [ -f ./$(ENV_FILE) ] && . ./$(ENV_FILE); set +a; \
-	mvn install -DskipTests -pl pulsepipe-common,pulsepipe-mqtt,pulsepipe-kafka,pulsepipe-storage -am -q && \
-	mvn spring-boot:run -pl pulsepipe-api $(ARGS)
+	$(MVN) install -DskipTests -pl pulsepipe-common,pulsepipe-mqtt,pulsepipe-kafka,pulsepipe-storage -am -q && \
+	$(MVN) spring-boot:run -pl pulsepipe-api $(ARGS)
 
 run:
 	$(call run_with_env,$(JAVA) -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar)

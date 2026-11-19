@@ -31,7 +31,7 @@ RustFS (S3 兼容) ◄── AWS SDK v2 上传/下载归档文件
 
 ## 环境要求
 
-- Java 21（Maven 构建）
+- Java 25（Maven 构建，mise.toml 固定）
 - Maven 3.9+
 - Docker + Docker Compose（或 Podman + Podman Compose）
 
@@ -148,6 +148,15 @@ PULSEPIPE_INTEGRATION=true RUSTFS_ENDPOINT=http://localhost:9000 \
 | GET | `/api/events?deviceId=&startTime=&endTime=&limit=` | 按设备 + 时间窗查询 |
 
 HTTP 仅用于管理与查询，不作为事件接入协议。
+
+### 接口文档
+
+应用启动后可访问：
+
+- knife4j-next UI：<http://localhost:8080/doc.html>
+- OpenAPI JSON：<http://localhost:8080/v3/api-docs>
+
+接口文档由 springdoc-openapi 3.2.0 提供，UI 使用 knife4j-next（knife4j 的 Boot 4 社区维护版，中文界面）。
 
 ## 测试
 

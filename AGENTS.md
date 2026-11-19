@@ -19,7 +19,7 @@
 
 ## 命令
 
-- 构建/测试：`mvn package`、`mvn test`（Java 21 + Maven 3.9+，`mise.toml` 固定 Java 21）
+- 构建/测试：`mvn package`、`mvn test`（Java 25 + Maven 3.9+，`mise.toml` 固定 Java 25）
 - 单模块测试：`mvn test -pl pulsepipe-storage -am`；单测类：`-Dtest='StorageIntegrationTest#rustfsRoundTripUploadDownload'`
 - 基础设施（EMQX/Kafka/TimescaleDB/RustFS）：`make infra`（compose 文件在 `deploy/docker-compose.dev.yml`，首次运行自动从 `.env.example` 生成 `.env`）
 - 运行主应用前必须加载凭据：`set -a; source .env; set +a`，然后 `java -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar`。配置全靠环境变量（application.yml 中 `${VAR:default}`）；若 shell 已有 `SERVER__PORT` 之类变量需 `--server.port=8080` 覆盖
@@ -31,7 +31,7 @@
 - RustFS 集成测试默认跳过，仅当 `PULSEPIPE_INTEGRATION=true` 且基础设施已启动、`RUSTFS_ENDPOINT`/`RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` 已设置时运行（见 `pulsepipe-storage` 的 `StorageIntegrationTest`，用 `@EnabledIfEnvironmentVariable` 门控）
 - Kafka EXTERNAL listener 宿主机端口是 **29092**（`KAFKA_EXTERNAL_PORT`），不是 9092；9092 仅容器内部网络使用
 
-## 架构（多模块 Maven，Spring Boot 3.3）
+## 架构（多模块 Maven，Spring Boot 4.1）
 
 数据流：MQTT (Paho, topic `device/+/telemetry`) → Kafka (`pulsepipe.events`, key=eventId) → TimescaleDB 批量幂等写入；RustFS (S3 兼容) 归档。
 
@@ -50,4 +50,4 @@
 ## 参考文档
 
 - `docs/ARCHITECTURE.md`：架构与可靠性边界（唯一文档，更新行为时同步）
-- API 文档：应用启动后 Knife4j/Springdoc
+- API 文档：应用启动后 knife4j-next UI（`http://localhost:8080/doc.html`，中文界面；OpenAPI JSON `/v3/api-docs`）

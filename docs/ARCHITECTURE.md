@@ -1,5 +1,7 @@
 # PulsePipe 架构与可靠性边界
 
+技术栈版本：Java 25 / Spring Boot 4.1.2 / Jackson 3（tools.jackson）/ springdoc-openapi 3.2.0（UI 为 knife4j-next 5.8.2）。
+
 ## 数据链路
 
 ```text

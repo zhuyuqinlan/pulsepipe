@@ -35,13 +35,19 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
-        <!-- Knife4j OpenAPI3 (Jakarta) 接口文档 -->
+        <!-- knife4j-next 接口文档 UI（knife4j 的 Boot 4 社区维护版），内嵌 springdoc -->
         <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+            <groupId>com.baizhukui</groupId>
+            <artifactId>knife4j-openapi3-boot4-spring-boot-starter</artifactId>
             <version>${knife4j.version}</version>
+        </dependency>
+        <!-- 对齐 springdoc 版本到 Boot 4.1 兼容区间（knife4j-next 5.8.2 自带 3.0.3 偏低） -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

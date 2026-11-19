@@ -8,6 +8,7 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -188,7 +189,7 @@ public final class DeviceSimulator {
                         "pressure", Math.round((95 + rnd.nextDouble() * 15) * 10) / 10.0,
                         "seq", System.nanoTime()));
         try {
-            MqttMessage message = new MqttMessage(EventJson.serialize(event).getBytes());
+            MqttMessage message = new MqttMessage(EventJson.serialize(event).getBytes(StandardCharsets.UTF_8));
             message.setQos(qos);
             messagesAttempted.incrementAndGet();
             String topic = String.format(TOPIC_TEMPLATE, deviceId);

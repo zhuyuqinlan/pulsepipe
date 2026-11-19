@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.boot.web.context.WebServerApplicationContext;
+import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.boot.web.server.WebServer;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.event.EventListener;

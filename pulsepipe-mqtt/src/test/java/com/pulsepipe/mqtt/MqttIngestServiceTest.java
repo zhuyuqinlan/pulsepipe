@@ -8,6 +8,7 @@ import com.pulsepipe.mqtt.ingest.MqttIngestService;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -40,7 +41,7 @@ class MqttIngestServiceTest {
         service.start();
         try {
             service.messageArrived("device/001/telemetry",
-                    new MqttMessage(EventJson.serialize(sampleEvent()).getBytes()));
+                    new MqttMessage(EventJson.serialize(sampleEvent()).getBytes(StandardCharsets.UTF_8)));
             assertTrue(received.await(5, TimeUnit.SECONDS), "event should reach the publisher");
             MqttIngestService.MqttStats stats = service.stats();
             assertEquals(1, stats.messagesReceived());
@@ -63,7 +64,7 @@ class MqttIngestServiceTest {
         try {
             for (int i = 0; i < 5; i++) {
                 service.messageArrived("device/001/telemetry",
-                        new MqttMessage(EventJson.serialize(sampleEvent()).getBytes()));
+                        new MqttMessage(EventJson.serialize(sampleEvent()).getBytes(StandardCharsets.UTF_8)));
             }
             MqttIngestService.MqttStats stats = service.stats();
             assertEquals(5, stats.messagesReceived());
@@ -82,7 +83,7 @@ class MqttIngestServiceTest {
         MqttIngestService service = new MqttIngestService(props, event -> {
         });
         try {
-            service.messageArrived("device/001/telemetry", new MqttMessage("not-json".getBytes()));
+            service.messageArrived("device/001/telemetry", new MqttMessage("not-json".getBytes(StandardCharsets.UTF_8)));
             MqttIngestService.MqttStats stats = service.stats();
             assertEquals(1, stats.parseErrors());
             assertEquals(0, stats.enqueued());

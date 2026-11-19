@@ -1,8 +1,7 @@
 package com.pulsepipe.common.json;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import com.pulsepipe.common.model.Event;
 
 import java.util.Map;
@@ -13,8 +12,7 @@ import java.util.Map;
  */
 public final class EventJson {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private EventJson() {
     }

@@ -8,6 +8,7 @@ import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
 import org.eclipse.paho.client.mqttv3.MqttAsyncClient;
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import java.nio.charset.StandardCharsets;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
@@ -174,7 +175,7 @@ public class MqttIngestService implements InitializingBean, DisposableBean, Mqtt
         // Runs on Paho callback threads: keep it cheap — parse + bounded offer only.
         messagesReceived.incrementAndGet();
         try {
-            Event event = EventJson.deserialize(new String(message.getPayload()));
+            Event event = EventJson.deserialize(new String(message.getPayload(), StandardCharsets.UTF_8));
             if (event.eventId() == null || event.deviceId() == null) {
                 parseErrors.incrementAndGet();
                 return;
