@@ -2,6 +2,8 @@ package com.pulsepipe.api.web;
 
 import com.pulsepipe.api.health.PipelineHealth;
 import com.pulsepipe.kafka.consumer.IngestBatchListener;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.pulsepipe.kafka.producer.KafkaEventPublisher;
 import com.pulsepipe.mqtt.ingest.MqttIngestService;
 import com.pulsepipe.storage.db.TimescaleEventRepository;
@@ -16,6 +18,7 @@ import java.util.Map;
 /**
  * Basic health endpoint summarising every pipeline stage.
  */
+@Tag(name = "健康检查", description = "管道各阶段运行状态汇总")
 @RestController
 @RequestMapping("/api")
 public class HealthController {
@@ -36,6 +39,7 @@ public class HealthController {
         this.rustfs = rustfs;
     }
 
+    @Operation(summary = "健康检查", description = "汇总 MQTT、Kafka、TimescaleDB、RustFS 各阶段状态，DB 或 MQTT 异常时返回 DEGRADED")
     @GetMapping("/health")
     public PipelineHealth health() {
         boolean dbOk = repository.dbHealthy();
