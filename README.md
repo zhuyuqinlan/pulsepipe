@@ -35,13 +35,28 @@ RustFS (S3 兼容) ◄── AWS SDK v2 上传/下载归档文件
 - Maven 3.9+
 - Docker + Docker Compose（或 Podman + Podman Compose）
 
+## Makefile 命令速查
+
+| 命令 | 作用 |
+|------|------|
+| `make build` | 构建全部模块（跳过测试） |
+| `make test` | 运行全部测试 |
+| `make dev` | 开发模式启动主应用（先 install 依赖模块再 `spring-boot:run`，自动加载 `.env`；可 `ARGS="--server.port=8080"` 传参） |
+| `make run` | 运行已构建的 api jar（自动加载 `.env`） |
+| `make infra` | 启动基础设施（首次自动从 `.env.example` 生成 `.env`） |
+| `make infra-down` | 停止基础设施（保留数据卷） |
+| `make simulate N=100 D=10 I=30` | 运行设备模拟器（台数/速率/时长） |
+| `make kafka-check` | 查看 Kafka topic 列表与 `pulsepipe.events` 最新 offset（需主应用已启动创建 topic） |
+| `make query-events LIMIT=10` | 查询 TimescaleDB 最近事件 |
+| `make clean` | 清理构建产物 |
+
 ## 快速开始
 
 ### 1. 启动基础设施
 
 ```bash
-cp .env.example .env        # 按需修改密码
-./scripts/start-infra.sh    # docker compose up -d (EMQX/Kafka/TimescaleDB/RustFS)
+make infra                  # docker compose up -d (EMQX/Kafka/TimescaleDB/RustFS)
+# 首次运行自动从 .env.example 生成 .env，按需修改密码
 ```
 
 包含的服务：
@@ -58,11 +73,8 @@ cp .env.example .env        # 按需修改密码
 ### 2. 构建并启动 Java 服务（宿主机运行，不入容器）
 
 ```bash
-mvn package
-# 加载 .env 中的凭据后再启动（DB/MQTT/RustFS 密码均来自 .env）
-set -a; source .env; set +a
-java -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar
-# 注意：若 shell 环境已有 SERVER__PORT 之类变量，用 --server.port=8080 覆盖
+make dev    # 构建 + 加载 .env + spring-boot:run
+# 注意：若 shell 环境已有 SERVER__PORT 之类变量，用 make dev ARGS="--server.port=8080" 覆盖
 ```
 
 启动后自动：连接 EMQX 并订阅 `device/+/telemetry` → 创建 `pulsepipe.events` Topic →
@@ -75,8 +87,8 @@ java -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar
 java -jar pulsepipe-simulator/target/pulsepipe-simulator-0.1.0-SNAPSHOT.jar \
   --devices 1000 --rate 10 --duration 60
 
-# 或使用脚本（默认 100 台/10 条/30 秒）
-./scripts/simulate.sh 100 10 30
+# 或使用 Makefile（默认 100 台/10 条/30 秒）
+make simulate N=100 D=10 I=30
 ```
 
 模拟器输出真实连接数、发送成功/失败数（基于 Paho QoS1 回调统计）。
@@ -92,18 +104,18 @@ curl http://localhost:8080/api/health
 **Kafka 消息验证**：
 
 ```bash
-./scripts/verify-kafka.sh
+make kafka-check
 # 或直接查看 topic 增长
-docker compose -f deploy/docker-compose.yml exec kafka \
+docker compose --env-file .env -f deploy/docker-compose.dev.yml exec kafka \
   kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic pulsepipe.events --time latest
 ```
 
 **TimescaleDB 查询**：
 
 ```bash
-./scripts/query-events.sh 10
+make query-events LIMIT=10
 # 或
-docker compose -f deploy/docker-compose.yml exec timescaledb psql -U pulsepipe -d pulsepipe \
+docker compose --env-file .env -f deploy/docker-compose.dev.yml exec timescaledb psql -U pulsepipe -d pulsepipe \
   -c "SELECT device_id, count(*) FROM pulsepipe_events GROUP BY device_id ORDER BY 1 LIMIT 10;"
 ```
 
@@ -156,8 +168,8 @@ pulsepipe/
 ├── pulsepipe-storage/    # TimescaleDB 批量幂等写入、RustFS S3 访问
 ├── pulsepipe-api/        # Spring Boot 主应用 + HTTP API
 ├── pulsepipe-simulator/  # MQTT 设备模拟器
-├── deploy/               # docker-compose.yml + TimescaleDB 初始化 SQL
-├── scripts/              # 启停、模拟、验证脚本
+├── deploy/               # docker-compose.dev.yml + TimescaleDB 初始化 SQL
+├── Makefile              # 构建、启停、模拟、验证快捷命令
 └── docs/                 # 架构与可靠性边界说明
 ```
 
