@@ -1,9 +1,7 @@
 # PulsePipe 常用命令快捷入口
 
 JAVA ?= java
-# 优先走 mise 管理的 Java 25 工具链；未装 mise 时退回 PATH 上的 mvn
-MISE := $(shell command -v mise >/dev/null 2>&1 && echo mise exec --)
-MVN := $(MISE) mvn
+MVN := mvn
 ENV_FILE := .env
 COMPOSE := docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.dev.yml
 SIMULATOR_JAR := pulsepipe-simulator/target/pulsepipe-simulator-0.1.0-SNAPSHOT.jar
@@ -13,17 +11,18 @@ define run_with_env
 set -a; [ -f ./$(ENV_FILE) ] && . ./$(ENV_FILE); set +a; $(1)
 endef
 
-.PHONY: help build test clean run infra infra-down simulate kafka-check query-events
+.PHONY: help build compile test clean run infra infra-down infra-remove simulate kafka-check query-events
 
 help:
 	@echo "常用目标:"
 	@echo "  make build          - 构建全部模块（跳过测试）"
+	@echo "  make compile        - 编译全部模块（不打包，快速验证编译）"
 	@echo "  make test           - 运行全部测试"
-	@echo "  make dev           - 开发模式启动主应用（等价 mvn spring-boot:run，自动加载 .env）"
-	@echo "  make run           - 运行已构建的 jar（需先 make build）"
+	@echo "  make run           - 开发模式启动主应用（等价 mvn spring-boot:run，自动加载 .env）"
 	@echo "  make infra          - 启动基础设施（EMQX/Kafka/TimescaleDB/RustFS）"
 	@echo "  make infra-down     - 停止基础设施（保留数据卷）"
-	@echo "  make simulate N=100 D=10 I=30 - 运行设备模拟器"
+	@echo "  make infra-remove   - 删除基础设施容器和数据卷（彻底清理，数据不可恢复）"
+	@echo "  make simulate N=100 D=10 I=30 - 运行设备模拟器（N=设备台数，D=每台速率(条/秒)，I=时长(秒)，默认 100/10/30）"
 	@echo "  make kafka-check    - 查看 Kafka topic 与最新 offset"
 	@echo "  make query-events LIMIT=10 - 查询 TimescaleDB 最近事件"
 	@echo "  make clean          - 清理构建产物"
@@ -31,22 +30,23 @@ help:
 build:
 	$(MVN) package -DskipTests
 
+# 快速编译验证：只编译不打包，比 build 快
+compile:
+	$(MVN) compile
+
 test:
 	$(MVN) test
 
 clean:
 	$(MVN) clean
 
-# 用法: make dev [ARGS="--server.port=8080"]
+# 用法: make run [ARGS="--server.port=8080"]
 # 单模块 spring-boot:run 需要兄弟模块已 install；自动加载 .env
 # （不用 call，因为模块列表的逗号会被 call 当参数分隔符）
-dev:
+run:
 	set -a; [ -f ./$(ENV_FILE) ] && . ./$(ENV_FILE); set +a; \
 	$(MVN) install -DskipTests -pl pulsepipe-common,pulsepipe-mqtt,pulsepipe-kafka,pulsepipe-storage -am -q && \
 	$(MVN) spring-boot:run -pl pulsepipe-api $(ARGS)
-
-run:
-	$(call run_with_env,$(JAVA) -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar)
 
 # 启动基础设施；首次运行自动从 .env.example 生成 .env
 infra:
@@ -61,6 +61,10 @@ infra:
 infra-down:
 	$(COMPOSE) down
 
+# 彻底清理：删除容器 + 数据卷（TimescaleDB/Kafka/EMQX/RustFS 数据全部丢失）
+infra-remove:
+	$(COMPOSE) down -v
+
 # 用法: make simulate N=100 D=10 I=30
 simulate: build
 	$(call run_with_env,$(JAVA) -jar $(SIMULATOR_JAR) \
@@ -73,7 +77,7 @@ simulate: build
 export MSYS_NO_PATHCONV := 1
 export MSYS2_ARG_CONV_EXCL := *
 
-# 注意：topic 由主应用自动创建，需先 make dev 再执行本命令
+# 注意：topic 由主应用自动创建，需先 make run 再执行本命令
 kafka-check:
 	@echo "=== Topics ==="
 	@$(COMPOSE) exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list

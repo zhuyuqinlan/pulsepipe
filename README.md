@@ -31,7 +31,7 @@ RustFS (S3 兼容) ◄── AWS SDK v2 上传/下载归档文件
 
 ## 环境要求
 
-- Java 25（Maven 构建，mise.toml 固定）
+- Java 25（Maven 构建）
 - Maven 3.9+
 - Docker + Docker Compose（或 Podman + Podman Compose）
 
@@ -41,7 +41,7 @@ RustFS (S3 兼容) ◄── AWS SDK v2 上传/下载归档文件
 |------|------|
 | `make build` | 构建全部模块（跳过测试） |
 | `make test` | 运行全部测试 |
-| `make dev` | 开发模式启动主应用（先 install 依赖模块再 `spring-boot:run`，自动加载 `.env`；可 `ARGS="--server.port=8080"` 传参） |
+| `make run` | 开发模式启动主应用（先 install 依赖模块再 `spring-boot:run`，自动加载 `.env`；可 `ARGS="--server.port=8080"` 传参） |
 | `make run` | 运行已构建的 api jar（自动加载 `.env`） |
 | `make infra` | 启动基础设施（首次自动从 `.env.example` 生成 `.env`） |
 | `make infra-down` | 停止基础设施（保留数据卷） |
@@ -73,8 +73,8 @@ make infra                  # docker compose up -d (EMQX/Kafka/TimescaleDB/RustF
 ### 2. 构建并启动 Java 服务（宿主机运行，不入容器）
 
 ```bash
-make dev    # 构建 + 加载 .env + spring-boot:run
-# 注意：若 shell 环境已有 SERVER__PORT 之类变量，用 make dev ARGS="--server.port=8080" 覆盖
+make run    # 构建 + 加载 .env + spring-boot:run
+# 注意：若 shell 环境已有 SERVER__PORT 之类变量，用 make run ARGS="--server.port=8080" 覆盖
 ```
 
 启动后自动：连接 EMQX 并订阅 `device/+/telemetry` → 创建 `pulsepipe.events` Topic →

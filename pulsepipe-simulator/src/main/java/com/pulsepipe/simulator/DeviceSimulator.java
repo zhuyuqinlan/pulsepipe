@@ -10,8 +10,6 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 import java.nio.charset.StandardCharsets;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
@@ -24,7 +22,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Standalone MQTT device simulator.
@@ -48,7 +45,6 @@ public final class DeviceSimulator {
     private final AtomicLong sendSuccess = new AtomicLong();
     private final AtomicLong sendFailure = new AtomicLong();
     private final Map<String, MqttAsyncClient> clients = new ConcurrentHashMap<>();
-    private final ReentrantLock statsLock = new ReentrantLock();
 
     private int devices = 1000;
     private int rate = 10;
@@ -86,7 +82,6 @@ public final class DeviceSimulator {
         System.out.printf("PulsePipe simulator: devices=%d, rate=%d msg/s per device, duration=%ds, broker=%s (QoS %d)%n",
                 devices, rate, durationSeconds, broker, qos);
 
-        long start = System.currentTimeMillis();
 
         // --- Phase 1: connect all devices concurrently -----------------------
         CountDownLatch connectLatch = new CountDownLatch(devices);

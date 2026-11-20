@@ -1,31 +1,64 @@
 package com.pulsepipe.api.web;
 
+import com.pulsepipe.api.dto.EventIngestRequest;
+import com.pulsepipe.api.vo.EventIngestResponse;
 import com.pulsepipe.common.model.Event;
+import com.pulsepipe.common.pipeline.EventPublisher;
 import com.pulsepipe.storage.db.TimescaleEventRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Read-only management/query API. HTTP is not an ingestion protocol.
+ * 管理/查询 API。POST 用于管理侧手动注入事件（走 Kafka 管道，与 MQTT 接入同一链路），
+ * 生产数据接入仍以 MQTT 为主协议。
  */
-@Tag(name = "事件查询", description = "只读管理/查询接口，HTTP 不是事件接入协议")
+@Tag(name = "事件", description = "事件查询（只读）与管理侧事件注入")
 @RestController
 @RequestMapping("/api/events")
 public class EventQueryController {
 
     private final TimescaleEventRepository repository;
+    private final EventPublisher publisher;
 
-    public EventQueryController(TimescaleEventRepository repository) {
+    public EventQueryController(TimescaleEventRepository repository, EventPublisher publisher) {
         this.repository = repository;
+        this.publisher = publisher;
+    }
+
+    /**
+     * 管理侧手动注入事件：走 EventPublisher（Kafka）管道，复用与 MQTT 接入
+     * 完全相同的写入链路，保持 at-least-once 语义。eventId/timestamp/eventType
+     * 缺省时自动补齐；deviceId 必填。
+     */
+    @Operation(summary = "注入事件",
+            description = "将事件发布到 Kafka 管道（与 MQTT 接入同一链路，at-least-once 语义，消费端幂等去重）。返回 202 表示已受理；deviceId 缺失返回 400。",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "注入请求体：deviceId 必填，eventId/timestamp/eventType/payload 可缺省自动补齐",
+                    required = true))
+    @PostMapping
+    public ResponseEntity<EventIngestResponse> create(@Valid @RequestBody EventIngestRequest req) {
+        Event event = new Event(
+                req.eventId() == null || req.eventId().isBlank() ? UUID.randomUUID().toString() : req.eventId(),
+                req.deviceId(),
+                req.eventType() == null || req.eventType().isBlank() ? Event.EVENT_TYPE_TELEMETRY : req.eventType(),
+                req.timestamp() == null ? System.currentTimeMillis() : req.timestamp(),
+                req.payload() == null ? Map.of() : req.payload());
+        publisher.publish(event);
+        return ResponseEntity.accepted().body(EventIngestResponse.from(event));
     }
 
     @Operation(summary = "按事件 ID 查询", description = "返回该事件 ID 的全部记录（at-least-once 可能产生多条相同记录），不存在返回 404")

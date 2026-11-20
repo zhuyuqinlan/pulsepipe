@@ -7,19 +7,20 @@
 | 命令 | 作用 |
 |------|------|
 | `make build` | 构建全部模块（跳过测试） |
+| `make compile` | 快速编译验证（只编译不打包） |
 | `make test` | 运行全部测试 |
-| `make dev` | 开发模式启动主应用（先 install 依赖模块再 `spring-boot:run`，自动加载 `.env`；可 `ARGS="--server.port=8080"` 传参） |
-| `make run` | 运行已构建的 api jar（自动加载 `.env`） |
+| `make run` | 开发模式启动主应用（先 install 依赖模块再 `spring-boot:run`，自动加载 `.env`；可 `ARGS="--server.port=8080"` 传参） |
 | `make infra` | 启动基础设施（首次自动从 `.env.example` 生成 `.env`） |
 | `make infra-down` | 停止基础设施（保留数据卷） |
-| `make simulate N=100 D=10 I=30` | 运行设备模拟器（台数/速率/时长） |
+| `make infra-remove` | 删除基础设施容器**和数据卷**（彻底清理，数据不可恢复） |
+| `make simulate N=100 D=10 I=30` | 运行设备模拟器（N=设备台数，D=每台每秒事件数，I=运行时长秒；默认 100/10/30，需先 `make infra`） |
 | `make kafka-check` | 查看 Kafka topic 列表与 `pulsepipe.events` 最新 offset（需主应用已启动创建 topic） |
 | `make query-events LIMIT=10` | 查询 TimescaleDB 最近事件 |
 | `make clean` | 清理构建产物 |
 
 ## 命令
 
-- 构建/测试：`mvn package`、`mvn test`（Java 25 + Maven 3.9+，`mise.toml` 固定 Java 25）
+- 构建/测试：`mvn package`、`mvn test`（Java 25 + Maven 3.9+）
 - 单模块测试：`mvn test -pl pulsepipe-storage -am`；单测类：`-Dtest='StorageIntegrationTest#rustfsRoundTripUploadDownload'`
 - 基础设施（EMQX/Kafka/TimescaleDB/RustFS）：`make infra`（compose 文件在 `deploy/docker-compose.dev.yml`，首次运行自动从 `.env.example` 生成 `.env`）
 - 运行主应用前必须加载凭据：`set -a; source .env; set +a`，然后 `java -jar pulsepipe-api/target/pulsepipe-api-0.1.0-SNAPSHOT.jar`。配置全靠环境变量（application.yml 中 `${VAR:default}`）；若 shell 已有 `SERVER__PORT` 之类变量需 `--server.port=8080` 覆盖
@@ -46,6 +47,14 @@
 - MQTT 回调线程只解析入队（有界队列 10000），不做 DB 操作
 - 幂等写入靠 JDBC Batch + `ON CONFLICT`，Hypertable 校验在测试中覆盖，勿改表结构除非同步 `deploy/timescaledb` 初始化 SQL
 - Docker/Podman 兼容：挂载用 `:z`，RustFS 卷用 `:U`；服务间以 compose 服务名互访，宿主机用映射端口
+
+## 验证
+
+- 修改完成后，根据实际情况进行类型检查、Lint、测试或构建
+- **每次大规模修改后（多文件、跨模块、改接口/配置/架构），必须运行 `make compile` 验证编译通过**
+- 小规模修改（单文件内小改动、注释、文档）由执行者自行评估是否需要运行 `make compile`
+- 没有实际执行的检查，不要声称已经通过
+- 遇到错误先分析原因，再修改，不要盲目重复执行
 
 ## 参考文档
 
